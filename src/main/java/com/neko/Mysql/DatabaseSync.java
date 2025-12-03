@@ -210,7 +210,7 @@ public class DatabaseSync {
             ResultSetMetaData metaData = rs.getMetaData();
             int columnCount = metaData.getColumnCount();
             
-            // 构建INSERT语句
+            // 构建INSERT语句，获取远程表的列信息
             StringBuilder insertSQL = new StringBuilder("INSERT INTO `" + dbName + "`.`" + tableName + "` VALUES (");
             for (int i = 1; i <= columnCount; i++) {
                 insertSQL.append("?");
@@ -230,6 +230,48 @@ public class DatabaseSync {
                 }
                 
                 insertStmt.executeBatch();
+            }
+        } catch (SQLException e) {
+            // 如果插入数据失败，删除本地表并重新从远程创建表结构，然后复制数据
+            System.err.println("Error inserting data into local table, recreating table structure from remote: " + e.getMessage());
+            try {
+                // 重新创建表结构
+                createTableFromRemote(remoteConn, localConn, dbName, tableName);
+                // 清空表后重新复制数据
+                truncateTable(localConn, dbName, tableName);
+                
+                // 重新执行数据复制
+                String recreateSelectSQL = "SELECT * FROM `" + tableName + "`";
+                try (Statement remoteStmt = remoteConn.createStatement();
+                     ResultSet rs = remoteStmt.executeQuery(recreateSelectSQL)) {
+                    
+                    ResultSetMetaData metaData = rs.getMetaData();
+                    int columnCount = metaData.getColumnCount();
+                    
+                    StringBuilder insertSQL = new StringBuilder("INSERT INTO `" + dbName + "`.`" + tableName + "` VALUES (");
+                    for (int i = 1; i <= columnCount; i++) {
+                        insertSQL.append("?");
+                        if (i < columnCount) {
+                            insertSQL.append(", ");
+                        }
+                    }
+                    insertSQL.append(")");
+                    
+                    try (PreparedStatement insertStmt = localConn.prepareStatement(insertSQL.toString())) {
+                        
+                        while (rs.next()) {
+                            for (int i = 1; i <= columnCount; i++) {
+                                insertStmt.setObject(i, rs.getObject(i));
+                            }
+                            insertStmt.addBatch();
+                        }
+                        
+                        insertStmt.executeBatch();
+                    }
+                }
+            } catch (SQLException recreateError) {
+                System.err.println("Error recreating table structure: " + recreateError.getMessage());
+                throw recreateError;
             }
         }
     }

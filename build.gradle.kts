@@ -37,6 +37,8 @@ tasks.shadowJar {
     archiveBaseName.set("MysqlSync")
     archiveClassifier.set("") // 移除默认的"all"分类器
     archiveVersion.set(project.version.toString())
+    // 明确指定要包含的配置
+    configurations = listOf(project.configurations.runtimeClasspath.get())
 }
 
 // 确保jar任务也包含主类信息

@@ -38,3 +38,10 @@ tasks.shadowJar {
     archiveClassifier.set("") // 移除默认的"all"分类器
     archiveVersion.set(project.version.toString())
 }
+
+// 确保jar任务也包含主类信息
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "com.neko.Mysql.Main"
+    }
+}

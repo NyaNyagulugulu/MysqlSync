@@ -1,63 +1,74 @@
-# MySQL数据库同步工具
+# MysqlSync
 
-这个工具用于定时从远程MySQL数据库同步数据到本地MySQL数据库。
+一个用于同步MySQL数据库的工具，将远程数据库同步到本地数据库。
 
 ## 功能特性
 
-- 定时同步远程数据库到本地数据库
-- 自动创建不存在的表
-- 如果表已存在则替换原有数据
-- 支持配置同步间隔时间
+- 自动同步远程数据库到本地数据库
+- 支持多个数据库和表的同步
+- 当本地表结构与远程不匹配时，自动重建表结构
+- 定时同步功能
 
-## 配置文件
+## 依赖
 
-编辑 `src/main/resources/application.properties` 文件：
+- Java 8+
+- MySQL Connector/J 8.0.33
+
+## 构建
+
+使用Gradle构建项目：
+
+```bash
+# 构建包含所有依赖的可执行JAR文件（推荐）
+./gradlew shadowJar
+
+# 或在Windows上
+gradlew.bat shadowJar
+```
+
+生成的JAR文件位于 `build/libs/MysqlSync-1.0-SNAPSHOT.jar`
+
+## 配置
+
+在 `src/main/resources/application.properties` 文件中配置数据库连接信息：
 
 ```properties
 # 本地数据库配置
-local.db.url=jdbc:mysql://localhost:3306/local_db
-local.db.username=root
+local.db.url=jdbc:mysql://127.0.0.1:3306
+local.db.username=your_username
 local.db.password=your_password
 local.db.driver=com.mysql.cj.jdbc.Driver
 
 # 远端数据库配置
-remote.db.url=jdbc:mysql://remote_host:3306/remote_db
-remote.db.username=remote_user
-remote.db.password=remote_password
+remote.db.url=jdbc:mysql://your_remote_host:3306
+remote.db.username=your_username
+remote.db.password=your_password
 remote.db.driver=com.mysql.cj.jdbc.Driver
 
-# 同步配置（毫秒，默认5分钟）
-sync.interval=300000
+# 同步配置（毫秒）
+sync.interval=300000  # 默认5分钟同步一次
 ```
 
-## 编译和运行
-
-使用Gradle编译项目：
+## 运行
 
 ```bash
-./gradlew build
+java -jar MysqlSync-1.0-SNAPSHOT.jar
 ```
 
-运行应用程序：
+## 重要说明
 
-```bash
-./gradlew run
-```
+1. **使用shadowJar构建**：必须使用`shadowJar`任务构建项目，而不是标准的`jar`任务，以确保MySQL驱动包含在JAR文件中。
+   - 错误做法：`./gradlew jar` - 这样生成的JAR缺少依赖
+   - 正确做法：`./gradlew shadowJar` - 这样生成的JAR包含所有依赖
+
+2. **错误处理**：当遇到表结构不匹配等问题时，程序会自动删除本地表并从远程重新创建表结构，然后同步数据。
+
+3. **权限要求**：确保数据库用户具有足够的权限来读取远程数据库和写入本地数据库。
 
 ## 工作原理
 
-1. 读取配置文件中的数据库连接信息
-2. 连接到远程和本地数据库
-3. 获取远程数据库中的所有表名
-4. 对每个表：
-   - 检查本地是否存在该表
-   - 如果不存在，从远程复制表结构
-   - 清空本地表数据
-   - 从远程复制所有数据到本地
-5. 按配置的时间间隔重复执行
-
-## 注意事项
-
-- 确保远程和本地数据库的连接信息正确
-- 确保本地数据库有足够权限创建表和插入数据
-- 同步过程会清空本地表的原有数据
+- 程序会遍历远程数据库实例中的所有数据库（排除系统数据库）
+- 对于每个数据库，检查本地是否存在，如果不存在则创建
+- 对于每个表，检查本地是否存在，如果不存在则从远程创建表结构
+- 同步数据时，先清空本地表，然后从远程复制数据
+- 如果在同步过程中遇到错误，会自动重建表结构并重新同步
